@@ -1,0 +1,59 @@
+{
+  "name": "@jinjiebewater/pi-skill-manager",
+  "version": "0.1.0",
+  "description": "Agent-callable CRUD for reusable Pi skills without a memory subsystem",
+  "type": "module",
+  "license": "MIT",
+  "author": "JinJieBeWater",
+  "contributors": [
+    {
+      "name": "Chandra Teja",
+      "url": "https://github.com/chandra447"
+    }
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "agent-skills"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JinJieBeWater/pi-skill-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JinJieBeWater/pi-skill-manager/issues"
+  },
+  "homepage": "https://github.com/JinJieBeWater/pi-skill-manager#readme",
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/skill-manager.ts"
+    ]
+  },
+  "scripts": {
+    "test": "bun test ./test/skill-manager.test.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run test && bun run typecheck"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.84.4",
+    "@earendil-works/pi-coding-agent": "^0.84.4",
+    "@earendil-works/pi-tui": "^0.84.4",
+    "@types/bun": "^1.2.22",
+    "pi-hermes-memory": "0.9.7",
+    "typescript": "^6.0.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
