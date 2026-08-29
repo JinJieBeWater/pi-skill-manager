@@ -17,7 +17,7 @@ Original work: Copyright (c) 2025 Chandra Teja. Adaptation: Copyright (c) 2026 J
 Install from GitHub:
 
 ```bash
-pi install git:github.com/JinJieBeWater/pi-skill-manager@v0.1.0
+pi install git:github.com/JinJieBeWater/pi-skill-manager@v0.1.1
 ```
 
 Then start a new Pi session or run `/reload`.
@@ -25,7 +25,7 @@ Then start a new Pi session or run `/reload`.
 To try it without changing settings:
 
 ```bash
-pi -e git:github.com/JinJieBeWater/pi-skill-manager@v0.1.0
+pi -e git:github.com/JinJieBeWater/pi-skill-manager@v0.1.1
 ```
 
 Pi packages execute with full system access. Review the extension before installing it.
@@ -78,7 +78,7 @@ bun install
 bun run check
 ```
 
-Tests compare the public tool contract and filesystem behavior against `pi-hermes-memory@0.9.7`, which is a development dependency only.
+Parity tests compare the public tool contract and filesystem behavior against `pi-hermes-memory@0.9.7`. That dependency lives in an isolated nested test package, so Pi Git installs never install it.
 
 ## License
 

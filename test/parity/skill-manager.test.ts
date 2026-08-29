@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { SkillStore as HermesSkillStore } from "pi-hermes-memory/src/store/skill-store.ts";
 import { registerSkillTool as registerHermesSkillTool } from "pi-hermes-memory/src/tools/skill-tool.ts";
 import { detectProjectSkills } from "pi-hermes-memory/src/project.ts";
-import { createSkillManagerExtension } from "../extensions/skill-manager.ts";
+import { createSkillManagerExtension } from "../../extensions/skill-manager.ts";
 
 const tempDirs: string[] = [];
 

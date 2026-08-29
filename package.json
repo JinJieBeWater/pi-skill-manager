@@ -1,6 +1,6 @@
 {
   "name": "@jinjiebewater/pi-skill-manager",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Agent-callable CRUD for reusable Pi skills without a memory subsystem",
   "type": "module",
   "license": "MIT",
@@ -36,7 +36,8 @@
     ]
   },
   "scripts": {
-    "test": "bun test ./test/skill-manager.test.ts",
+    "test:deps": "bun install --cwd test/parity --frozen-lockfile",
+    "test": "bun run test:deps && bun test ./test/parity/skill-manager.test.ts",
     "typecheck": "tsc --noEmit",
     "check": "bun run test && bun run typecheck"
   },
@@ -50,7 +51,6 @@
     "@earendil-works/pi-coding-agent": "^0.84.4",
     "@earendil-works/pi-tui": "^0.84.4",
     "@types/bun": "^1.2.22",
-    "pi-hermes-memory": "0.9.7",
     "typescript": "^6.0.3"
   },
   "publishConfig": {
