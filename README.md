@@ -17,7 +17,7 @@ Original work: Copyright (c) 2025 Chandra Teja. Adaptation: Copyright (c) 2026 J
 Install from GitHub:
 
 ```bash
-pi install git:github.com/JinJieBeWater/pi-skill-manager
+pi install git:github.com/JinJieBeWater/pi-skill-manager@v0.1.0
 ```
 
 Then start a new Pi session or run `/reload`.
@@ -25,7 +25,7 @@ Then start a new Pi session or run `/reload`.
 To try it without changing settings:
 
 ```bash
-pi -e git:github.com/JinJieBeWater/pi-skill-manager
+pi -e git:github.com/JinJieBeWater/pi-skill-manager@v0.1.0
 ```
 
 Pi packages execute with full system access. Review the extension before installing it.
