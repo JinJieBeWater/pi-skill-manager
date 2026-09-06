@@ -60,11 +60,6 @@ Use create for a new skill, patch for a targeted section update, update for a fu
 
 const TOOL_DESCRIPTION_SUFFIX = `
 
-WHEN TO CREATE A SKILL:
-- After completing a complex task that required trial and error or multiple tool calls
-- When you discover a non-obvious approach that could be reused
-- When the user teaches you a specific workflow or procedure
-
 SCOPE:
 - 'global': transferable procedures that can be reused across repositories. Written to ~/.pi/agent/pi-hermes-memory/skills/<slug>/SKILL.md, this extension's own directory, kept separate from skills the user installed themselves. Pi also loads its own ~/.pi/agent/skills/ first, so a name already used there is rejected rather than silently shadowed.
 - 'project': procedures tied to this repo's paths, scripts, architecture, deploy flow, or conventions. Written to ~/.pi/agent/projects-memory/<project>/skills/<slug>/SKILL.md.
@@ -806,7 +801,7 @@ export function createSkillManagerExtension(options?: Partial<SkillManagerOption
       description: TOOL_DESCRIPTION + TOOL_DESCRIPTION_SUFFIX,
       promptSnippet: "Create, inspect, and update reusable procedures and patterns",
       promptGuidelines: [
-        "Use the skill_manage tool after completing complex tasks that required trial and error or multiple tool calls.",
+        "Use skill_manage when you discover a verified, reusable procedure or the user explicitly asks you to preserve a workflow. Update an applicable existing skill; create one only when none applies.",
         "Use 'create' to save a new reusable procedure, 'patch' to update a section of an existing skill by skill_id, and 'update' for a full rewrite.",
         "Scope is required on create: choose scope='global' for transferable procedures and scope='project' when the workflow depends on this repo's paths, scripts, conventions, or deploy steps.",
         "Prefer structured fields for create/update/patch: when_to_use, procedure_steps, pitfalls, and verification_steps. The tool renders valid SKILL.md sections for you.",
