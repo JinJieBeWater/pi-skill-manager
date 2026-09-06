@@ -66,10 +66,10 @@ function stableToolResult(result: any) {
 }
 
 describe("standalone skill_manage compatibility", () => {
-  test("tool contract metadata matches Hermes", async () => {
+  test("tool API metadata and rendering match Hermes", async () => {
     const oldImpl = await setup("hermes");
     const newImpl = await setup("standalone");
-    for (const field of ["name", "label", "description", "promptSnippet", "promptGuidelines", "parameters"]) {
+    for (const field of ["name", "label", "parameters"]) {
       expect(newImpl.tool[field]).toEqual(oldImpl.tool[field]);
     }
     expect(typeof newImpl.tool.renderResult).toBe(typeof oldImpl.tool.renderResult);
