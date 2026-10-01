@@ -44,9 +44,19 @@ skill_manage
 └── delete
 ```
 
-It preserves the `pi-hermes-memory` skill-manager contract, including structured fields, stable skill IDs, duplicate and similarity guards, content safety checks, atomic writes, and project identity across Git worktrees.
+It retains the `pi-hermes-memory` input fields, storage layout, and CRUD behavior, including structured Markdown rendering, stable skill IDs, duplicate and similarity guards, content safety checks, atomic writes, and project identity across Git worktrees. Tool guidance and incomplete-body diagnostics are maintained independently.
 
 It does not start memory storage, SQLite indexing, session search, background review, correction detection, consolidation, or flush hooks.
+
+### Body inputs
+
+- `create`: provide non-empty `content`, or all three structured fields: `when_to_use`, `procedure_steps`, and `verification_steps`. `pitfalls` is optional.
+- `update` / `edit`: changing only `description` needs no body. Replacing the body requires `content` or all three structured fields.
+- `patch`: provide the target section's `content` or matching structured field; other body fields are not required.
+
+Required body strings must contain non-whitespace text, and required lists must contain at least one non-blank item. Non-empty `content` takes precedence over structured fields for `create`, `update`, and `edit`.
+
+Incomplete structured bodies return `success: false`, an `error`, and a `missing_fields` list containing every missing required body field. Rejected calls do not write files. Supply all listed fields and retry the same action; the tool does not invent missing content.
 
 ## Storage
 
@@ -78,7 +88,7 @@ bun install
 bun run check
 ```
 
-Parity tests compare the public tool contract and filesystem behavior against `pi-hermes-memory@0.9.7`. That dependency lives in an isolated nested test package, so Pi Git installs never install it.
+Parity tests compare parameter structure, CRUD results, filesystem behavior, and safety checks against `pi-hermes-memory@0.9.7`. Separate regression checks cover incomplete-body diagnostics and repair without partial writes. Tests do not require model-facing guidance to match upstream wording. The upstream dependency lives in an isolated nested test package, so Pi Git installs never install it.
 
 ## License
 
