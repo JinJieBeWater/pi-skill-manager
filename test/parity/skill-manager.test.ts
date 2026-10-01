@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { validateToolArguments } from "@earendil-works/pi-ai";
 import { SkillStore as HermesSkillStore } from "pi-hermes-memory/src/store/skill-store.ts";
 import { registerSkillTool as registerHermesSkillTool } from "pi-hermes-memory/src/tools/skill-tool.ts";
 import { detectProjectSkills } from "pi-hermes-memory/src/project.ts";
@@ -43,13 +44,13 @@ async function setup(kind: "hermes" | "standalone") {
 
   const execute = (params: Record<string, unknown>) => tool.execute(
     "test-call",
-    params,
+    validateToolArguments(tool, { type: "toolCall", id: "test-call", name: tool.name, arguments: params }),
     new AbortController().signal,
     undefined,
     { cwd: root },
   );
 
-  return { execute, globalSkillsDir, piGlobalSkillsDir, projectSkillsDir, tool };
+  return { execute, root, globalSkillsDir, piGlobalSkillsDir, projectSkillsDir, tool };
 }
 
 function resultJson(result: any) {
@@ -66,12 +67,138 @@ function stableToolResult(result: any) {
 }
 
 describe("standalone skill_manage compatibility", () => {
-  test("tool API metadata and rendering match Hermes", async () => {
+  test("incomplete create reports all missing body fields and can be repaired in one call", async () => {
+    const impl = await setup("standalone");
+    const params = {
+      action: "create",
+      name: "retry-demo",
+      description: "Inspect demo behavior",
+      scope: "project",
+      procedure_steps: ["Inspect the demo."],
+    };
+    const failure = resultJson(await impl.execute(params));
+    expect(failure.success).toBe(false);
+    expect(failure.error).toEqual(expect.any(String));
+    expect(failure.missing_fields).toEqual(["when_to_use", "verification_steps"]);
+    expect(await readdir(impl.root)).toEqual([]);
+
+    const success = resultJson(await impl.execute({
+      ...params,
+      when_to_use: "Use when inspecting the demo.",
+      verification_steps: ["The demo passes its health check."],
+    }));
+    expect(success.success).toBe(true);
+    const saved = resultJson(await impl.execute({ action: "view", skill_id: success.skillId }));
+    expect(saved.body).toContain("Inspect the demo.");
+    expect(saved.body).toContain("The demo passes its health check.");
+  });
+
+  test("missing and blank body fields are reported without creating files", async () => {
+    const impl = await setup("standalone");
+    const allMissing = ["when_to_use", "procedure_steps", "verification_steps"];
+    const cases: Array<[Record<string, unknown>, string[]]> = [
+      [{}, allMissing],
+      [{ content: " \n\t " }, allMissing],
+      [{ pitfalls: ["Check the demo first."] }, allMissing],
+      [{ when_to_use: "  ", procedure_steps: ["Inspect."], verification_steps: ["Check."] }, ["when_to_use"]],
+      [{ when_to_use: "Inspect the demo.", procedure_steps: [], verification_steps: [] }, ["procedure_steps", "verification_steps"]],
+      [{ when_to_use: "Inspect the demo.", procedure_steps: [" \n "], verification_steps: [" \t "] }, ["procedure_steps", "verification_steps"]],
+      [{ verification_steps: ["Check."] }, ["when_to_use", "procedure_steps"]],
+      [{ when_to_use: "Inspect the demo.", procedure_steps: ["Inspect."] }, ["verification_steps"]],
+      [{ when_to_use: "Inspect the demo.", verification_steps: ["Check."] }, ["procedure_steps"]],
+    ];
+    for (const [body, missingFields] of cases) {
+      const result = resultJson(await impl.execute({
+        action: "create", name: "blank-demo", description: "Inspect the demo", scope: "project", ...body,
+      }));
+      expect(result.success).toBe(false);
+      expect(result.error).toEqual(expect.any(String));
+      expect(result.missing_fields).toEqual(missingFields);
+      expect(await readdir(impl.root)).toEqual([]);
+    }
+  });
+
+  test.each(["update", "edit"])("incomplete %s preserves the file until all body fields are supplied", async (action) => {
+    const impl = await setup("standalone");
+    const created = resultJson(await impl.execute({
+      action: "create", name: "update-body-demo", description: "Inspect the demo", scope: "project",
+      content: "## Procedure\n1. Original step.",
+    }));
+    expect(created.success).toBe(true);
+    const before = await readFile(created.path, "utf8");
+    const params = { action, skill_id: created.skillId, description: "Updated inspection", procedure_steps: ["Updated step."] };
+    const rejected = resultJson(await impl.execute(params));
+    expect(rejected.success).toBe(false);
+    expect(rejected.missing_fields).toEqual(["when_to_use", "verification_steps"]);
+    expect(await readFile(created.path, "utf8")).toBe(before);
+
+    expect(resultJson(await impl.execute({
+      ...params, when_to_use: "Use when inspecting the demo.", verification_steps: ["The health check passes."],
+    })).success).toBe(true);
+    const saved = resultJson(await impl.execute({ action: "view", skill_id: created.skillId }));
+    expect(saved.version).toBe(2);
+    expect(saved.description).toBe("Updated inspection");
+    expect(saved.body).toContain("Updated step.");
+    expect(saved.body).toContain("The health check passes.");
+
+    expect(resultJson(await impl.execute({ action, skill_id: created.skillId, description: "Description-only inspection" })).success).toBe(true);
+    const descriptionOnly = resultJson(await impl.execute({ action: "view", skill_id: created.skillId }));
+    expect(descriptionOnly.description).toBe("Description-only inspection");
+    expect(descriptionOnly.body).toBe(saved.body);
+
+    expect(resultJson(await impl.execute({
+      action: "patch", skill_id: created.skillId, section: "Procedure", procedure_steps: ["Patched step."],
+    })).success).toBe(true);
+    const patched = resultJson(await impl.execute({ action: "view", skill_id: created.skillId }));
+    expect(patched.body).toContain("Patched step.");
+    expect(patched.body).toContain("Use when inspecting the demo.");
+    expect(patched.body).toContain("The health check passes.");
+  });
+
+  test("non-empty content overrides incomplete structured fields for create, update, and edit", async () => {
     const oldImpl = await setup("hermes");
     const newImpl = await setup("standalone");
-    for (const field of ["name", "label", "parameters"]) {
+    const content = "## Procedure\n1. Raw step.";
+    const structured = { when_to_use: "  ", procedure_steps: ["Ignored step."], verification_steps: [] };
+    const create = { action: "create", name: "raw-body-demo", description: "Inspect the demo", scope: "project", content, ...structured };
+    expect(stableResult(await newImpl.execute(create))).toEqual(stableResult(await oldImpl.execute(create)));
+    const skill_id = "project:demo:raw-body-demo";
+    for (const action of ["update", "edit"]) {
+      const nextContent = `## Procedure\n1. Raw ${action} step.`;
+      const params = { action, skill_id, content: nextContent, ...structured };
+      expect(stableResult(await newImpl.execute(params))).toEqual(stableResult(await oldImpl.execute(params)));
+      expect(resultJson(await newImpl.execute({ action: "view", skill_id })).body).toBe(nextContent);
+    }
+    expect(await readFile(join(newImpl.projectSkillsDir, "raw-body-demo", "SKILL.md"), "utf8"))
+      .toBe(await readFile(join(oldImpl.projectSkillsDir, "raw-body-demo", "SKILL.md"), "utf8"));
+  });
+
+  test("structured create without pitfalls writes the same skill as Hermes", async () => {
+    const oldImpl = await setup("hermes");
+    const newImpl = await setup("standalone");
+    const params = {
+      action: "create", name: "optional-pitfalls-demo", description: "Inspect the demo", scope: "project",
+      when_to_use: "Use when inspecting the demo.", procedure_steps: ["Inspect the demo."], verification_steps: ["The health check passes."],
+    };
+    const result = await newImpl.execute(params);
+    expect(resultJson(result).success).toBe(true);
+    expect(stableResult(result)).toEqual(stableResult(await oldImpl.execute(params)));
+    expect(await readFile(join(newImpl.projectSkillsDir, "optional-pitfalls-demo", "SKILL.md"), "utf8"))
+      .toBe(await readFile(join(oldImpl.projectSkillsDir, "optional-pitfalls-demo", "SKILL.md"), "utf8"));
+  });
+
+  test("tool identity, parameter structure, and renderer match Hermes", async () => {
+    const oldImpl = await setup("hermes");
+    const newImpl = await setup("standalone");
+    for (const field of ["name", "label"]) {
       expect(newImpl.tool[field]).toEqual(oldImpl.tool[field]);
     }
+    const schemas = [oldImpl.tool, newImpl.tool].map((tool) => {
+      const schema = JSON.parse(JSON.stringify(tool.parameters));
+      for (const property of Object.values(schema.properties) as Record<string, unknown>[]) delete property.description;
+      return schema;
+    });
+    expect(schemas[1]).toEqual(schemas[0]);
     expect(typeof newImpl.tool.renderResult).toBe(typeof oldImpl.tool.renderResult);
     const result = {
       content: [{ type: "text", text: JSON.stringify({ success: true, skillId: "global:demo" }) }],
@@ -247,13 +374,12 @@ describe("standalone skill_manage compatibility", () => {
     expect(newShadowed).toEqual(oldShadowed);
   });
 
-  test("validation errors and details match Hermes", async () => {
+  test("non-body validation errors and details match Hermes", async () => {
     const oldImpl = await setup("hermes");
     const newImpl = await setup("standalone");
     const cases = [
       { action: "create" },
       { action: "create", name: "x" },
-      { action: "create", name: "x", description: "x" },
       { action: "create", name: "x", description: "x", content: "body" },
       { action: "view", skill_id: "global:missing" },
       { action: "patch" },

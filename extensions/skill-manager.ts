@@ -80,6 +80,13 @@ SKILL FORMAT:
   - verification_steps: checks that prove success
 - For patch, pass section plus the matching structured field (section="Procedure" + procedure_steps, etc.). Do not pass JSON array/object strings as content.
 
+BODY INPUTS:
+- create requires name, description, scope, and either non-empty content or all three fields: when_to_use, procedure_steps, verification_steps.
+- update/edit may change description alone. Replacing the body requires non-empty content or all three structured fields; use patch for one section.
+- patch requires skill_id, section, and content or a structured field for that section. Other body fields are not required.
+- Required body strings must contain non-whitespace text; required lists must contain at least one non-blank item. pitfalls is optional.
+- On create/update/edit, non-empty content takes precedence over structured body fields.
+
 ONE-SHOT EXAMPLE:
 {
   "action": "create",
@@ -114,10 +121,10 @@ const PARAMETERS = Type.Object({
   scope: Type.Optional(StringEnum(["global", "project"] as const, { description: "Required for create. Use 'global' for portable procedures and 'project' for repo-specific workflows." })),
   section: Type.Optional(Type.String({ description: "Required for patch. Section header to patch. e.g., 'Procedure', 'Pitfalls', 'Verification', 'When to Use'." })),
   content: Type.Optional(Type.String({ description: "Raw markdown body for create/update/edit, or Markdown section body for patch. Prefer structured fields over free-form content when possible. For patch, JSON arrays are auto-coerced for list sections; JSON objects are rejected." })),
-  when_to_use: Type.Optional(Type.String({ description: "Structured create/update/edit field, or structured patch body when section is 'When to Use'." })),
-  procedure_steps: Type.Optional(Type.Array(Type.String(), { description: "Structured create/update/edit field, or structured patch body when section is 'Procedure'. Ordered concrete steps." })),
+  when_to_use: Type.Optional(Type.String({ description: "Required non-blank trigger conditions and boundaries for structured create/update/edit bodies when content is omitted or blank. Not required for description-only updates. For patch, supplies only the 'When to Use' section." })),
+  procedure_steps: Type.Optional(Type.Array(Type.String(), { description: "Required ordered concrete steps for structured create/update/edit bodies when content is omitted or blank. Must contain at least one non-blank item. Not required for description-only updates. For patch, supplies only the 'Procedure' section." })),
   pitfalls: Type.Optional(Type.Array(Type.String(), { description: "Structured create/update/edit field, or structured patch body when section is 'Pitfalls'." })),
-  verification_steps: Type.Optional(Type.Array(Type.String(), { description: "Structured create/update/edit field, or structured patch body when section is 'Verification'." })),
+  verification_steps: Type.Optional(Type.Array(Type.String(), { description: "Required verification checks for structured create/update/edit bodies when content is omitted or blank. Must contain at least one non-blank item. Not required for description-only updates. For patch, supplies only the 'Verification' section." })),
 }, { additionalProperties: false });
 
 function normalizeTextList(value: unknown): string[] {
@@ -212,8 +219,11 @@ function textResult(result: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(result) }], details: result };
 }
 
-function validationError(error: string) {
-  return { content: [{ type: "text" as const, text: JSON.stringify({ success: false, error }) }], details: {} };
+function validationError(error: string, missingFields?: string[]) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify({ success: false, error, ...(missingFields ? { missing_fields: missingFields } : {}) }) }],
+    details: {},
+  };
 }
 
 function record(value: unknown): Record<string, any> | null {
@@ -308,19 +318,23 @@ function renderSkillResult(
   };
 }
 
-function buildBody(params: Record<string, unknown>): { body?: string; error?: string } {
+function buildBody(params: Record<string, unknown>): { body?: string; error?: string; missingFields?: string[] } {
   const content = typeof params.content === "string" ? params.content.trim() : "";
   if (content) return { body: content };
   const whenToUse = typeof params.when_to_use === "string" ? params.when_to_use.trim() : "";
   const procedure = normalizeTextList(params.procedure_steps);
   const pitfalls = normalizeTextList(params.pitfalls);
   const verification = normalizeTextList(params.verification_steps);
-  if (!whenToUse && !procedure.length && !pitfalls.length && !verification.length) {
-    return { error: "Either content or structured fields are required. Prefer when_to_use, procedure_steps, pitfalls, and verification_steps for create/update." };
+  const missingFields: string[] = [];
+  if (!whenToUse) missingFields.push("when_to_use");
+  if (!procedure.length) missingFields.push("procedure_steps");
+  if (!verification.length) missingFields.push("verification_steps");
+  if (missingFields.length) {
+    return {
+      error: `Missing structured body fields: ${missingFields.join(", ")}. Supply all missing fields and retry the same action.`,
+      missingFields,
+    };
   }
-  if (!whenToUse) return { error: "when_to_use is required when content is omitted." };
-  if (!procedure.length) return { error: "procedure_steps is required when content is omitted." };
-  if (!verification.length) return { error: "verification_steps is required when content is omitted." };
   return { body: buildStructuredSkillBody(whenToUse, procedure, pitfalls, verification) };
 }
 
@@ -818,7 +832,7 @@ export function createSkillManagerExtension(options?: Partial<SkillManagerOption
           if (!input.name) return validationError("name is required for 'create' action.");
           if (!input.description) return validationError("description is required for 'create' action.");
           const body = buildBody(input);
-          if (!body.body) return validationError(body.error!);
+          if (!body.body) return validationError(body.error!, body.missingFields);
           if (!input.scope) return validationError("scope is required for 'create' action. Use 'global' or 'project'.");
           return textResult(await manager.create(String(input.name), String(input.description), body.body, input.scope as SkillScope));
         }
@@ -847,7 +861,7 @@ export function createSkillManagerExtension(options?: Partial<SkillManagerOption
           if (!description && !content && !hasStructured) {
             return validationError(`Provide description, content, or structured fields for '${action}'.`);
           }
-          if (hasStructured && !built.body) return validationError(built.error!);
+          if (hasStructured && !built.body) return validationError(built.error!, built.missingFields);
           return textResult(await manager.edit(String(input.skill_id), description, built.body ?? content));
         }
         if (input.action === "patch") {
