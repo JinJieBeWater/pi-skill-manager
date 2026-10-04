@@ -52,66 +52,15 @@ interface SkillDocument {
   body: string;
 }
 
-const TOOL_DESCRIPTION = `Manage reusable procedures and patterns as Pi-native skills that survive across sessions. Skills are procedural memory — they capture HOW to do something, not just what happened.
+const TOOL_DESCRIPTION = `Manage persistent Pi-native skills: reusable procedures and patterns that survive across sessions, not session history or temporary task state. Use when preserving a verified workflow or when the user explicitly asks to save one. This tool is not generic skill discovery: use Pi’s loaded skill context or explicit SKILL.md paths for already-loaded external skills.
 
-This tool is intentionally named 'skill_manage' because it manages saved procedural skills; it is not a generic skill-discovery tool.
-
-Use create for a new skill, patch for a targeted section update, update for a full rewrite, view to inspect existing skills, and delete to remove obsolete ones. When creating a skill, scope is required: use global for portable workflows and project for procedures tied to this repo's paths, scripts, architecture, deploy steps, or conventions.`;
+Actions: create adds; view lists or reads; patch changes one section; update rewrites the body or changes description only; edit is a legacy alias for update; delete removes. View an existing skill before patching or updating when its current contents matter.`;
 
 const TOOL_DESCRIPTION_SUFFIX = `
 
-SCOPE:
-- 'global': transferable procedures that can be reused across repositories. Written to ~/.pi/agent/pi-hermes-memory/skills/<slug>/SKILL.md, this extension's own directory, kept separate from skills the user installed themselves. Pi also loads its own ~/.pi/agent/skills/ first, so a name already used there is rejected rather than silently shadowed.
-- 'project': procedures tied to this repo's paths, scripts, architecture, deploy flow, or conventions. Written to ~/.pi/agent/projects-memory/<project>/skills/<slug>/SKILL.md.
+Create requires scope: global for procedures reusable across repositories; project for workflows tied to repository paths, scripts, architecture, deployment, or conventions.
 
-WHEN TO UPDATE A SKILL:
-- Prefer 'patch' for one section when you can pass structured fields
-- Prefer 'update' for multi-section rewrites or when patch formatting would be unstable
-- Use patch when you discover a better approach, pitfall, or changed step in one section
-
-SKILL FORMAT:
-- name: short, descriptive (e.g., "debug-typescript-errors")
-- description: one-line summary of when to use it
-- body: structured with sections — ## When to Use, ## Procedure, ## Pitfalls, ## Verification
-- Prefer structured fields over raw markdown when possible:
-  - when_to_use: trigger conditions and boundaries
-  - procedure_steps: ordered concrete steps
-  - pitfalls: caveats or failure modes
-  - verification_steps: checks that prove success
-- For patch, pass section plus the matching structured field (section="Procedure" + procedure_steps, etc.). Do not pass JSON array/object strings as content.
-
-BODY INPUTS:
-- create requires name, description, scope, and either non-empty content or all three fields: when_to_use, procedure_steps, verification_steps.
-- update/edit may change description alone. Replacing the body requires non-empty content or all three structured fields; use patch for one section.
-- patch requires skill_id, section, and content or a structured field for that section. Other body fields are not required.
-- Required body strings must contain non-whitespace text; required lists must contain at least one non-blank item. pitfalls is optional.
-- On create/update/edit, non-empty content takes precedence over structured body fields.
-
-ONE-SHOT EXAMPLE:
-{
-  "action": "create",
-  "name": "debug-typescript-errors",
-  "description": "Debug TypeScript build failures in this repo",
-  "scope": "project",
-  "when_to_use": "Use when TypeScript fails in this repo's workspace or CI.",
-  "procedure_steps": [
-    "Run pnpm tsc --noEmit to get the full error list.",
-    "Fix dependency or config errors before leaf-module errors.",
-    "Re-run the same command until it passes cleanly."
-  ],
-  "pitfalls": [
-    "Do not trust editor-only diagnostics without the CLI output.",
-    "Do not stop after the first error if downstream modules are still failing."
-  ],
-  "verification_steps": [
-    "pnpm tsc --noEmit exits successfully.",
-    "The failing CI TypeScript job passes."
-  ]
-}
-
-ACTIONS: create (new skill), view (read full content or list), patch (update a section by skill_id), update (replace description + body by skill_id), delete (remove by skill_id).
-
-Do not use this tool to discover already-loaded external skills by name alone; use Pi's loaded skill context or explicit SKILL.md paths for that.`;
+For full bodies, prefer structured fields for standard skill sections. Use raw Markdown content when authoring a full body directly; non-empty content wins if both forms are supplied. Patch one section using raw content or its matching structured field.`;
 
 const PARAMETERS = Type.Object({
   action: StringEnum(["create", "view", "patch", "update", "edit", "delete"] as const, { description: "The skill action to perform." }),
